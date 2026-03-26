@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mutom — Devinez l'artiste du jour</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e12;
+    --bg2: #16161d;
+    --bg3: #1e1e28;
+    --border: rgba(255,255,255,0.1);
+    --text: #f0eeff;
+    --muted: rgba(240,238,255,0.45);
+    --accent1: #ff4d6d;
+    --accent2: #ffd166;
+    --accent3: #7c3aed;
+    --correct: #7c3aed;
+    --present: #ffd166;
+    --absent: #2a2a38;
+    --absent-text: rgba(240,238,255,0.25);
+    --purple: #7c3aed;
+    --purple-light: #a78bfa;
+    --cell-size: 52px;
+    --cell-gap: 6px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* animated background blobs */
+  .bg-orbs {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.18;
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+  .orb1 { width: 500px; height: 500px; background: var(--accent1); top: -100px; left: -100px; animation-delay: 0s; }
+  .orb2 { width: 400px; height: 400px; background: var(--purple); top: 30%; right: -100px; animation-delay: -4s; }
+  .orb3 { width: 350px; height: 350px; background: var(--purple); bottom: -50px; left: 30%; animation-delay: -8s; }
+
+  @keyframes drift {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(30px, 20px) scale(1.08); }
+  }
+
+  /* layout */
+  #app {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* header */
+  header {
+    width: 100%;
+    max-width: 640px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 5px;
+    background: linear-gradient(135deg, var(--accent1), var(--purple-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .day-badge {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 16px;
+    transition: all 0.2s;
+  }
+  .icon-btn:hover { background: var(--bg3); color: var(--text); }
+
+  /* main content */
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 640px;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  /* hint bar */
+  #hint-bar {
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 16px;
+    text-align: center;
+    width: 100%;
+    max-width: 420px;
+  }
+  #hint-bar span { color: var(--purple-light); font-weight: 600; }
+
+  #hint-banner {
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    width: 100%;
+    max-width: 420px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,209,102,0.35);
+    background: rgba(255,209,102,0.08);
+    color: var(--text);
+    animation: fadeUp 0.4s ease;
+  }
+  #hint-banner strong { color: var(--present); }
+
+  /* message */
+  #msg-bar {
+    min-height: 28px;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.3s;
+    color: var(--text);
+  }
+  #msg-bar.error { color: var(--accent1); }
+  #msg-bar.success { color: var(--accent3); }
+
+  /* board */
+  #board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cell-gap);
+    align-items: center;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--cell-gap);
+  }
+
+  .cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--bg2);
+    transition: border-color 0.15s;
+    user-select: none;
+  }
+
+  .cell.active { border-color: var(--purple-light); }
+  .cell.filled { border-color: rgba(255,255,255,0.25); animation: pop 0.1s ease; }
+
+  .cell.correct  { background: var(--correct);  border-color: var(--correct);  color: #fff; animation: flip 0.4s ease forwards; }
+  .cell.present  { background: var(--present);  border-color: var(--present);  color: #3d2d00; animation: flip 0.4s ease forwards; }
+  .cell.absent   { background: var(--absent);   border-color: transparent;     color: var(--absent-text); animation: flip 0.4s ease forwards; }
+  .cell.revealed { background: var(--purple);   border-color: var(--purple);   color: #fff; }
+
+  .space { width: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--border); font-size: 18px; }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes flip {
+    0%   { transform: rotateX(0deg); }
+    50%  { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+
+  .row.shake { animation: shake 0.4s ease; }
+
+  /* keyboard */
+  #keyboard {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    align-items: center;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .kb-row {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+
+  .key {
+    height: 52px;
+    min-width: 38px;
+    padding: 0 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--bg3);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    user-select: none;
+    text-transform: uppercase;
+  }
+  .key:hover { background: rgba(255,255,255,0.1); }
+  .key:active { transform: scale(0.93); }
+  .key.wide { min-width: 64px; font-size: 12px; }
+  .key.enter-key { min-width: 90px; background: var(--purple); border-color: var(--purple); color: #fff; font-weight: 600; }
+  .key.enter-key:hover { background: var(--purple-light); border-color: var(--purple-light); color: #1a0050; }
+
+  .key.correct { background: var(--correct); border-color: var(--correct); color: #fff; }
+  .key.present { background: var(--present); border-color: var(--present); color: #3d2d00; }
+  .key.absent  { background: #1a1a24; border-color: transparent; color: rgba(255,255,255,0.2); }
+
+  /* results card */
+  #result-card {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    animation: fadeUp 0.4s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform: translateY(20px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  #result-card.show { display: flex; }
+
+  .result-emoji { font-size: 40px; }
+  .result-title { font-size: 20px; font-weight: 600; }
+  .result-name  { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 3px; background: linear-gradient(135deg, var(--accent1), var(--purple-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .result-tries { font-size: 13px; color: var(--muted); }
+
+  .countdown-wrap { margin-top: 4px; }
+  .countdown-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #countdown { font-size: 24px; font-weight: 600; color: var(--purple-light); font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; }
+
+  .share-btn {
+    margin-top: 4px;
+    padding: 10px 24px;
+    border-radius: 24px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent1), var(--purple));
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .share-btn:hover { opacity: 0.9; transform: scale(1.03); }
+  .share-btn:active { transform: scale(0.97); }
+
+  /* modal */
+  #modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 400px;
+    position: relative;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--bg3);
+    color: var(--muted); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal h2 { font-size: 20px; font-weight: 600; margin-bottom: 1rem; }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: rgba(240,238,255,0.8);
+  }
+
+  .legend-cell {
+    width: 40px; height: 40px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 600; flex-shrink: 0;
+  }
+  .lg-correct { background: var(--correct); color: #fff; }
+  .lg-present { background: var(--present); color: #3d2d00; }
+  .lg-absent  { background: var(--absent);  color: var(--absent-text); }
+  .lg-reveal  { background: var(--purple);  color: #fff; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+
+  /* stat cards */
+  .stat-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .stat-num { font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--purple-light); letter-spacing:1px; line-height:1; }
+  .stat-label { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  .dist-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .dist-label { width:16px; text-align:right; color:var(--muted); flex-shrink:0; }
+  .dist-bar-wrap { flex:1; background:var(--bg3); border-radius:4px; height:22px; overflow:hidden; }
+  .dist-bar { height:100%; background:var(--purple); border-radius:4px; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; font-size:12px; font-weight:600; color:#fff; min-width:22px; transition:width 0.6s ease; }
+  .dist-bar.today { background: linear-gradient(90deg, var(--purple), var(--accent1)); }
+
+  /* responsive */
+  @media (max-width: 480px) {
+    :root { --cell-size: 44px; --cell-gap: 5px; }
+    .cell { font-size: 18px; }
+    .key { height: 46px; min-width: 32px; font-size: 13px; }
+    .key.wide { min-width: 54px; }
+    .key.enter-key { min-width: 78px; }
+    .logo { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="logo">MUTOM</div>
+    <div class="header-right">
+      <div class="day-badge" id="day-badge">Artiste #1</div>
+      <div class="icon-btn" id="challenge-icon-btn" onclick="openChallenge()" title="Lancer un défi" style="font-size:18px;">⚡</div>
+      <div class="icon-btn" onclick="openStats()" title="Mes stats">📊</div>
+      <div class="icon-btn" onclick="openHelp()" title="Aide">?</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="hint-bar">Trouvez l'artiste — <span id="hint-text"></span></div>
+  <div id="hint-banner" style="display:none;"></div>
+    <div id="msg-bar"></div>
+    <div id="board"></div>
+    <div id="result-card">
+      <div class="result-emoji" id="res-emoji">🎉</div>
+      <div class="result-title" id="res-title">Bravo !</div>
+      <div class="result-name" id="res-name"></div>
+      <div class="result-tries" id="res-tries"></div>
+      <div class="countdown-wrap">
+        <div class="countdown-label">Prochain artiste dans</div>
+        <div id="countdown">--:--:--</div>
+      </div>
+      <div id="res-streak" style="font-size:13px;color:var(--muted);display:none;"></div>
+      <button class="share-btn" onclick="share()">Partager mes résultats 🎵</button>
+      <button onclick="openStats()" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;padding:7px 18px;border-radius:20px;cursor:pointer;margin-top:-4px;">Voir mes stats 📊</button>
+    </div>
+    <div id="keyboard"></div>
+  </main>
+</div>
+
+<!-- Challenge modal -->
+<div id="challenge-overlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-close" onclick="closeChallenge()">✕</div>
+    <h2>⚡ Lancer un défi</h2>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:1.2rem;">Choisis un artiste, génère un lien et envoie-le à un ami. Il devra trouver le nom !</p>
+
+    <div id="challenge-step1">
+      <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Nom de l'artiste (en majuscules)</label>
+      <input id="challenge-input" type="text" placeholder="ex: SERGE GAINSBOURG"
+        style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Outfit',sans-serif;font-size:15px;outline:none;margin-bottom:8px;"
+        oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')generateChallengeLink()">
+      <div id="challenge-error" style="font-size:13px;color:var(--accent1);min-height:18px;margin-bottom:8px;"></div>
+      <button onclick="generateChallengeLink()" style="width:100%;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent1),var(--purple));color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Générer le lien ✨</button>
+    </div>
+
+    <div id="challenge-step2" style="display:none;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Lien à partager :</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="challenge-link" readonly style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--purple-light);font-size:13px;font-family:'Outfit',sans-serif;outline:none;">
+        <button onclick="copyChallenge()" id="copy-btn" style="padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap;">Copier</button>
+      </div>
+      <button onclick="shareChallenge()" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent1),var(--purple));color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:600;cursor:pointer;">Partager le défi 🎵</button>
+      <button onclick="resetChallengeModal()" style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Outfit',sans-serif;font-size:13px;cursor:pointer;">← Choisir un autre artiste</button>
+    </div>
+  </div>
+</div>
+
+<!-- Challenge banner (shown when playing a challenge) -->
+<div id="challenge-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:50;background:linear-gradient(135deg,var(--accent1),var(--purple));padding:8px 16px;text-align:center;font-size:13px;font-weight:600;color:#fff;letter-spacing:0.5px;">
+  ⚡ Mode défi — Un ami t'a lancé un défi !
+</div>
+<!-- Stats modal -->
+<div id="stats-overlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:420px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-close" onclick="closeStats()">✕</div>
+    <h2>📊 Mes statistiques</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem;">
+      <div class="stat-card"><div class="stat-num" id="st-played">0</div><div class="stat-label">Joués</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-winpct">0%</div><div class="stat-label">Victoires</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-streak">0</div><div class="stat-label">Série 🔥</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-maxstreak">0</div><div class="stat-label">Record</div></div>
+    </div>
+    <div style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Distribution des essais</div>
+    <div id="dist-chart" style="display:flex;flex-direction:column;gap:6px;margin-bottom:1.5rem;"></div>
+    <hr class="divider">
+    <div style="font-size:13px;color:var(--muted);text-align:center;">Stats sauvegardées sur cet appareil.</div>
+  </div>
+</div>
+
+<div id="modal-overlay" onclick="e=>{if(e.target===this)closeHelp()}">
+  <div class="modal">
+    <div class="modal-close" onclick="closeHelp()">✕</div>
+    <h2>Comment jouer ?</h2>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:1rem;">Devinez l'artiste français du jour en 6 essais. La première lettre de chaque mot est révélée.</p>
+    <div class="legend-item"><div class="legend-cell lg-reveal">S</div><div>Lettre révélée au départ (bonne place)</div></div>
+    <div class="legend-item"><div class="legend-cell lg-correct">E</div><div>Bonne lettre, bonne place</div></div>
+    <div class="legend-item"><div class="legend-cell lg-present">R</div><div>Bonne lettre, mauvaise place</div></div>
+    <div class="legend-item"><div class="legend-cell lg-absent">G</div><div>Lettre absente du nom</div></div>
+    <hr class="divider">
+    <p style="font-size:13px;color:var(--muted);">Un nouvel artiste est disponible chaque jour à minuit. Tous tes amis jouent avec le même artiste !</p>
+  </div>
+</div>
+
+<script>
+const ARTISTS = [
+  {n:"ALIZEE", g:"Pop"},
+  {n:"ANGELE", g:"Pop"},
+  {n:"ARIELLE DOMBASLE", g:"Variété"},
+  {n:"AXEL BAUER", g:"Rock"},
+  {n:"BARBARA", g:"Chanson française"},
+  {n:"ALAIN BASHUNG", g:"Rock"},
+  {n:"BENABAR", g:"Chanson française"},
+  {n:"BENJAMIN BIOLAY", g:"Chanson française"},
+  {n:"BERTRAND CANTAT", g:"Rock"},
+  {n:"CARLA BRUNI", g:"Chanson française"},
+  {n:"CHARLES AZNAVOUR", g:"Chanson française"},
+  {n:"CLAUDIO CAPEO", g:"Variété"},
+  {n:"CLAUDE FRANCOIS", g:"Pop"},
+  {n:"CORNEILLE", g:"R&B"},
+  {n:"ETIENNE DAHO", g:"Pop"},
+  {n:"DIAMS", g:"Rap"},
+  {n:"EDDY MITCHELL", g:"Rock"},
+  {n:"EDITH PIAF", g:"Chanson française"},
+  {n:"EMILY LOIZEAU", g:"Pop indé"},
+  {n:"FAUVE", g:"Indie rock"},
+  {n:"FELIX GRAY", g:"Pop"},
+  {n:"FLORENT PAGNY", g:"Variété"},
+  {n:"FRANCIS CABREL", g:"Chanson française"},
+  {n:"GAEL FAYE", g:"Rap"},
+  {n:"GAETAN ROUSSEL", g:"Rock"},
+  {n:"GAROU", g:"Variété"},
+  {n:"GEORGES BRASSENS", g:"Chanson française"},
+  {n:"GEORGES MOUSTAKI", g:"Chanson française"},
+  {n:"GRAND CORPS MALADE", g:"Slam"},
+  {n:"INDOCHINE", g:"Rock"},
+  {n:"JEAN FERRAT", g:"Chanson française"},
+  {n:"JEAN GUIDONI", g:"Chanson française"},
+  {n:"JULIEN DORE", g:"Pop"},
+  {n:"JULIEN CLERC", g:"Pop"},
+  {n:"JULIETTE GRECO", g:"Chanson française"},
+  {n:"KERY JAMES", g:"Rap"},
+  {n:"KENDJI GIRAC", g:"Pop"},
+  {n:"LAURENT VOULZY", g:"Pop"},
+  {n:"LARA FABIAN", g:"Variété"},
+  {n:"LOMEPAL", g:"Rap"},
+  {n:"LOUANE", g:"Pop"},
+  {n:"MAITRE GIMS", g:"Rap"},
+  {n:"MATHIEU CHEDID", g:"Pop rock"},
+  {n:"MAXIME LE FORESTIER", g:"Chanson française"},
+  {n:"MICHEL BERGER", g:"Pop"},
+  {n:"MICHEL FUGAIN", g:"Variété"},
+  {n:"MICHEL SARDOU", g:"Variété"},
+  {n:"MIREILLE MATHIEU", g:"Variété"},
+  {n:"NEKFEU", g:"Rap"},
+  {n:"NOLWENN LEROY", g:"Pop"},
+  {n:"ORELSAN", g:"Rap"},
+  {n:"PATRICK BRUEL", g:"Variété"},
+  {n:"PATRICK FIORI", g:"Variété"},
+  {n:"PHILIPPE KATERINE", g:"Pop indé"},
+  {n:"PIERRE BACHELET", g:"Variété"},
+  {n:"PLK", g:"Rap"},
+  {n:"ROCH VOISINE", g:"Pop"},
+  {n:"SERGE GAINSBOURG", g:"Chanson française"},
+  {n:"SERGE LAMA", g:"Variété"},
+  {n:"SOFIANE", g:"Rap"},
+  {n:"SOPRANO", g:"Rap"},
+  {n:"STROMAE", g:"Électro pop"},
+  {n:"TELEPHONE", g:"Rock"},
+  {n:"TRYO", g:"Reggae"},
+  {n:"VIANNEY", g:"Pop"},
+  {n:"VERONIQUE SANSON", g:"Pop rock"},
+  {n:"YANNICK NOAH", g:"Reggae"},
+  {n:"ZAZIE", g:"Pop rock"},
+  {n:"ZAZ", g:"Jazz"},
+  {n:"CLAUDE NOUGARO", g:"Jazz"},
+  {n:"LEO FERRE", g:"Chanson française"},
+  {n:"CHARLES TRENET", g:"Chanson française"},
+  {n:"RENAUD", g:"Chanson française"},
+  {n:"GOLDMAN", g:"Pop rock"},
+  {n:"PATRICIA KAAS", g:"Variété"},
+  {n:"VANESSA PARADIS", g:"Pop"},
+  {n:"CHRISTOPHE MAE", g:"Pop"},
+  {n:"AMIR", g:"Pop"},
+  {n:"SLIMANE", g:"R&B"},
+  {n:"VITAA", g:"R&B"},
+  {n:"CHIMENE BADI", g:"Variété"},
+  {n:"CHRISTOPHE WILLEM", g:"Pop"},
+  {n:"CAMILLE", g:"Pop indé"},
+  {n:"RAPHAEL", g:"Pop rock"},
+  {n:"ARTHUR H", g:"Jazz"},
+  {n:"MIOSSEC", g:"Chanson française"},
+  {n:"DOMINIQUE A", g:"Rock indé"},
+  {n:"ALAIN SOUCHON", g:"Chanson française"},
+  {n:"FRANCIS LALANNE", g:"Variété"},
+  {n:"CELINE DION", g:"Pop"},
+  {n:"MYLENE FARMER", g:"Pop"}
+];
+
+const MAX_TRIES = 6;
+const KB = [
+  ['A','Z','E','R','T','Y','U','I','O','P'],
+  ['Q','S','D','F','G','H','J','K','L','M'],
+  ['⌫','W','X','C','V','B','N','ENTER']
+];
+
+// Daily seed: days since epoch
+function getDayIndex() {
+  const epoch = new Date('2026-03-13');
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  epoch.setHours(0,0,0,0);
+  return Math.floor((now - epoch) / 86400000);
+}
+
+function getDayArtist() {
+  const idx = getDayIndex();
+  return ARTISTS[idx % ARTISTS.length];
+}
+
+function formatName(n) {
+  return n.split(' ').map(w => w[0] + w.slice(1).toLowerCase()).join(' ');
+}
+
+let isChallengeMode = false;
+
+function initGame() {
+  // Check for challenge in URL
+  const params = new URLSearchParams(window.location.search);
+  const challengeParam = params.get('defi');
+
+  let artist;
+  if (challengeParam) {
+    try {
+      const decoded = atob(challengeParam);
+      const name = decoded.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // Find in list or use custom
+      const found = ARTISTS.find(a => a.n === name);
+      artist = found || { n: name, g: '?' };
+      isChallengeMode = true;
+      document.getElementById('challenge-banner').style.display = 'block';
+      document.getElementById('app').style.paddingTop = '36px';
+      document.getElementById('challenge-icon-btn').style.display = 'none';
+    } catch(e) {
+      artist = getDayArtist();
+    }
+  } else {
+    artist = getDayArtist();
+    isChallengeMode = false;
+  }
+
+  target = artist.n;
+  targetGenre = artist.g;
+  words = target.split(' ');
+  currentRow = 0;
+  currentCol = 0;
+  gameOver = false;
+  keyStates = {};
+  rowStates = [];
+
+  board = [];
+  for (let r = 0; r < MAX_TRIES; r++) {
+    board.push(words.map(w => Array(w.length).fill('')));
+  }
+
+  // badge
+  if (isChallengeMode) {
+    document.getElementById('day-badge').textContent = '⚡ Défi';
+  } else {
+    const dayNum = getDayIndex() + 1;
+    document.getElementById('day-badge').textContent = 'Mutom #' + dayNum;
+  }
+
+  // hint
+  const hintWords = words.map(w => w.length + ' lettres').join(' + ');
+  document.getElementById('hint-text').textContent = hintWords;
+
+  // check saved state (only in daily mode)
+  const saved = isChallengeMode ? null : loadState();
+  if (saved) {
+    restoreState(saved);
+  } else {
+    preRevealFirst();
+    renderBoard();
+    renderKeyboard();
+  }
+}
+
+function preRevealFirst() {
+  words.forEach((w, wi) => {
+    board[currentRow][wi][0] = w[0];
+  });
+  currentCol = words.length;
+}
+
+function getWordPos(flatCol) {
+  let rem = flatCol;
+  for (let wi = 0; wi < words.length; wi++) {
+    if (rem < words[wi].length) return { wi, lc: rem };
+    rem -= words[wi].length;
+  }
+  return { wi: words.length - 1, lc: words[words.length - 1].length };
+}
+
+function getCurrentInput() {
+  return words.map((w, wi) => board[currentRow][wi].join(''));
+}
+
+function currentFilled() {
+  return getCurrentInput().every((w, i) => w.length === words[i].length);
+}
+
+function inputLetter(letter) {
+  if (gameOver) return;
+  const { wi, lc } = getWordPos(currentCol);
+  if (lc < words[wi].length) {
+    if (wi === 0 && lc === 0) return; // first letter locked
+    board[currentRow][wi][lc] = letter;
+    currentCol++;
+    renderBoard();
+  }
+}
+
+function deleteLetter() {
+  if (gameOver || currentCol <= 0) return;
+  let col = currentCol - 1;
+  const { wi, lc } = getWordPos(col);
+  if (wi === 0 && lc === 0) return; // can't delete revealed
+  board[currentRow][wi][lc] = '';
+  currentCol--;
+  renderBoard();
+}
+
+function submitRow() {
+  if (gameOver) return;
+  if (!currentFilled()) {
+    setMsg('Complétez le nom entier !', 'error');
+    shakeRow(currentRow);
+    return;
+  }
+  const guess = getCurrentInput().join(' ');
+  const states = computeStates(getCurrentInput());
+  rowStates[currentRow] = states;
+
+  animateRow(currentRow, states, () => {
+    updateKeyStates(currentRow, states);
+    renderKeyboard();
+
+    if (guess === target) {
+      gameOver = true;
+      saveState();
+      setTimeout(() => showResult(true), 400);
+    } else {
+      currentRow++;
+      if (currentRow >= MAX_TRIES) {
+        gameOver = true;
+        saveState();
+        setTimeout(() => showResult(false), 400);
+      } else {
+        currentCol = 0;
+        preRevealFirst();
+        if (currentRow === 4) {
+          showHintBanner('🎵 Indice — Genre : <strong>' + targetGenre + '</strong>');
+        }
+        if (currentRow === 5) {
+          revealExtraLetter();
+        }
+        renderBoard();
+        setMsg('');
+      }
+    }
+  });
+}
+
+function computeStates(guessWords) {
+  return words.map((tWord, wi) => {
+    const guess = guessWords[wi] || '';
+    let states = Array(tWord.length).fill('absent');
+    let tArr = tWord.split('');
+    let gArr = guess.split('');
+    for (let i = 0; i < tWord.length; i++) {
+      if (gArr[i] === tArr[i]) { states[i] = 'correct'; tArr[i] = null; gArr[i] = null; }
+    }
+    for (let i = 0; i < tWord.length; i++) {
+      if (!gArr[i]) continue;
+      const idx = tArr.indexOf(gArr[i]);
+      if (idx !== -1) { states[i] = 'present'; tArr[idx] = null; }
+    }
+    return states;
+  });
+}
+
+function animateRow(row, states, cb) {
+  const rowEl = document.getElementById('board').children[row];
+  let cellIdx = 0;
+  let totalCells = words.reduce((a, w) => a + w.length, 0);
+  let done = 0;
+
+  words.forEach((w, wi) => {
+    for (let li = 0; li < w.length; li++) {
+      const cell = rowEl.children[cellIdx];
+      const delay = (wi * w.length + li) * 80;
+      setTimeout(() => {
+        cell.classList.remove('active', 'filled');
+        if (wi === 0 && li === 0) { cell.classList.add('correct'); }
+        else { cell.classList.add(states[wi][li]); }
+        cell.style.animationDelay = '0ms';
+        done++;
+        if (done === totalCells && cb) cb();
+      }, delay);
+      cellIdx++;
+    }
+    cellIdx++; // space
+  });
+}
+
+function updateKeyStates(row, states) {
+  const priority = { correct: 3, present: 2, absent: 1 };
+  words.forEach((w, wi) => {
+    for (let li = 0; li < w.length; li++) {
+      const key = board[row][wi][li];
+      if (!key) continue;
+      const s = states[wi][li];
+      if (!keyStates[key] || priority[s] > priority[keyStates[key]]) {
+        keyStates[key] = s;
+      }
+    }
+  });
+}
+
+function renderBoard() {
+  const brd = document.getElementById('board');
+  brd.innerHTML = '';
+  for (let r = 0; r < MAX_TRIES; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    rowEl.id = 'row-' + r;
+
+    words.forEach((w, wi) => {
+      for (let li = 0; li < w.length; li++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const val = board[r][wi][li];
+        cell.textContent = val;
+
+        if (r < currentRow && rowStates[r]) {
+          // already submitted
+          if (wi === 0 && li === 0) cell.classList.add('correct');
+          else cell.classList.add(rowStates[r][wi][li]);
+        } else if (r === currentRow && !gameOver) {
+          const flatIdx = words.slice(0, wi).reduce((a, ww) => a + ww.length, 0) + li;
+          if (flatIdx === currentCol) cell.classList.add('active');
+          else if (val) cell.classList.add('filled');
+          // first letters of each word always revealed styling
+          if (li === 0) cell.classList.add('revealed');
+        } else if (r > currentRow) {
+          // future rows empty
+        }
+
+        rowEl.appendChild(cell);
+      }
+      if (wi < words.length - 1) {
+        const sp = document.createElement('div');
+        sp.className = 'space';
+        sp.textContent = '·';
+        rowEl.appendChild(sp);
+      }
+    });
+    brd.appendChild(rowEl);
+  }
+}
+
+function renderKeyboard() {
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  KB.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+    row.forEach(k => {
+      const btn = document.createElement('div');
+      btn.className = 'key';
+      if (k === 'ENTER') { btn.classList.add('enter-key'); btn.textContent = 'Valider'; }
+      else if (k === '⌫') { btn.classList.add('wide'); btn.textContent = '⌫'; }
+      else { btn.textContent = k; }
+      if (keyStates[k]) btn.classList.add(keyStates[k]);
+      btn.addEventListener('click', () => {
+        if (k === 'ENTER') submitRow();
+        else if (k === '⌫') deleteLetter();
+        else inputLetter(k);
+      });
+      rowEl.appendChild(btn);
+    });
+    kb.appendChild(rowEl);
+  });
+}
+
+function showHintBanner(html) {
+  const el = document.getElementById('hint-banner');
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+function revealExtraLetter() {
+  // Find all non-first positions not yet revealed, pick one at random
+  const candidates = [];
+  words.forEach((w, wi) => {
+    for (let li = 1; li < w.length; li++) {
+      candidates.push({ wi, li });
+    }
+  });
+  if (!candidates.length) return;
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  board[currentRow][pick.wi][pick.li] = words[pick.wi][pick.li];
+  // bump currentCol past this if needed
+  const flatIdx = words.slice(0, pick.wi).reduce((a, ww) => a + ww.length, 0) + pick.li;
+  if (flatIdx >= currentCol) currentCol = flatIdx + 1;
+  // Update banner to show both hints
+  showHintBanner('🎵 Genre : <strong>' + targetGenre + '</strong> &nbsp;·&nbsp; 🔤 Une lettre supplémentaire révélée !');
+}
+
+function shakeRow(r) {
+  const rowEl = document.getElementById('row-' + r);
+  if (!rowEl) return;
+  rowEl.classList.add('shake');
+  setTimeout(() => rowEl.classList.remove('shake'), 500);
+}
+
+function setMsg(txt, type = '') {
+  const el = document.getElementById('msg-bar');
+  el.textContent = txt;
+  el.className = type ? 'error' === type ? 'error' : 'success' : '';
+  if (type === 'error') el.classList.add('error');
+  if (type === 'success') el.classList.add('success');
+}
+
+function showResult(won) {
+  const card = document.getElementById('result-card');
+  const emojiEl = document.getElementById('res-emoji');
+  const titleEl = document.getElementById('res-title');
+  const nameEl = document.getElementById('res-name');
+  const triesEl = document.getElementById('res-tries');
+
+  document.getElementById('keyboard').style.display = 'none';
+
+  if (won) {
+    const triesCount = currentRow + 1;
+    recordResult(true, triesCount);
+    const s = loadGlobalStats() || defaultStats();
+    emojiEl.textContent = ['🎊','🎉','🔥','✨','🎵','🎤'][Math.min(currentRow, 5)];
+    titleEl.textContent = triesCount === 1 ? 'Incroyable !' : triesCount <= 3 ? 'Bravo !' : 'Bien joué !';
+    triesEl.textContent = 'Trouvé en ' + triesCount + ' essai' + (triesCount > 1 ? 's' : '');
+    if (!isChallengeMode && s.streak > 1) {
+      const streakEl = document.getElementById('res-streak');
+      streakEl.textContent = '🔥 Série en cours : ' + s.streak + ' jour' + (s.streak > 1 ? 's' : '') + ' !';
+      streakEl.style.display = 'block';
+    }
+  } else {
+    recordResult(false, 0);
+    emojiEl.textContent = '😢';
+    titleEl.textContent = 'Raté !';
+    triesEl.textContent = 'L\'artiste était :';
+  }
+  nameEl.textContent = formatName(target);
+  card.classList.add('show');
+  if (!isChallengeMode) {
+    startCountdown();
+  } else {
+    document.querySelector('.countdown-wrap').style.display = 'none';
+  }
+}
+
+function startCountdown() {
+  function update() {
+    const now = new Date();
+    const tomorrow = new Date();
+    tomorrow.setHours(24, 0, 0, 0);
+    const diff = tomorrow - now;
+    const h = String(Math.floor(diff / 3600000)).padStart(2,'0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2,'0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+    document.getElementById('countdown').textContent = h + ':' + m + ':' + s;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+function share() {
+  const dayNum = getDayIndex() + 1;
+  const won = rowStates.some((rs, i) => rs && rs.every(w => w.every(s => s === 'correct')) && i < MAX_TRIES);
+  const tries = won ? rowStates.filter(Boolean).length : 'X';
+
+  let grid = '';
+  rowStates.forEach((rs, ri) => {
+    if (!rs) return;
+    let rowStr = '';
+    words.forEach((w, wi) => {
+      for (let li = 0; li < w.length; li++) {
+        if (wi === 0 && li === 0) rowStr += '🟣';
+        else {
+          if (rs[wi][li] === 'correct') rowStr += '🟣';
+          else if (rs[wi][li] === 'present') rowStr += '🟨';
+          else rowStr += '⬛';
+        }
+      }
+      if (wi < words.length - 1) rowStr += ' ';
+    });
+    grid += rowStr + '\n';
+  });
+
+  const text = `🎵 MUTOM #${dayNum} — ${tries}/${MAX_TRIES}\n\n${grid}\nJouez sur mutom.fr`;
+
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('.share-btn');
+      btn.textContent = 'Copié ! ✓';
+      setTimeout(() => btn.textContent = 'Partager mes résultats 🎵', 2000);
+    });
+  }
+}
+
+// Persistence
+function saveKey() { return 'mutom_' + getDayIndex(); }
+
+function saveState() {
+  const state = { board, currentRow, currentCol, gameOver, keyStates, rowStates, targetGenre };
+  localStorage.setItem(saveKey(), JSON.stringify(state));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(saveKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function restoreState(saved) {
+  board = saved.board;
+  currentRow = saved.currentRow;
+  currentCol = saved.currentCol;
+  gameOver = saved.gameOver;
+  keyStates = saved.keyStates;
+  rowStates = saved.rowStates;
+  if (saved.targetGenre) targetGenre = saved.targetGenre;
+  // Re-show hint banners if applicable
+  if (currentRow >= 4 || gameOver) {
+    showHintBanner('🎵 Genre : <strong>' + targetGenre + '</strong>');
+  }
+  if (currentRow >= 5 || gameOver) {
+    showHintBanner('🎵 Genre : <strong>' + targetGenre + '</strong> &nbsp;·&nbsp; 🔤 Une lettre supplémentaire révélée !');
+  }
+  renderBoard();
+  renderKeyboard();
+  if (gameOver) {
+    const won = rowStates.some(rs => rs && rs.every(w => w.every(s => s === 'correct')));
+    setTimeout(() => showResult(won), 300);
+  }
+}
+
+// Keyboard input
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  if (e.key === 'Enter') submitRow();
+  else if (e.key === 'Backspace') deleteLetter();
+  else if (/^[a-zA-ZÀ-ÿ]$/.test(e.key)) {
+    const letter = e.key.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    inputLetter(letter);
+  }
+});
+
+function openHelp() { document.getElementById('modal-overlay').classList.add('open'); }
+function closeHelp() { document.getElementById('modal-overlay').classList.remove('open'); }
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeHelp();
+});
+
+// ── Stats & Streak ──────────────────────────────────────────
+function loadGlobalStats() {
+  try { return JSON.parse(localStorage.getItem('mutom_stats') || 'null'); } catch { return null; }
+}
+function saveGlobalStats(s) { localStorage.setItem('mutom_stats', JSON.stringify(s)); }
+
+function defaultStats() {
+  return { played:0, wins:0, streak:0, maxStreak:0, dist:{1:0,2:0,3:0,4:0,5:0,6:0} };
+}
+
+function recordResult(won, triesCount) {
+  if (isChallengeMode) return; // don't count challenge games
+  const s = loadGlobalStats() || defaultStats();
+  const today = getDayIndex();
+  if (s.lastDay === today) return; // already recorded today
+  s.played++;
+  if (won) {
+    s.wins++;
+    s.dist[triesCount] = (s.dist[triesCount] || 0) + 1;
+    const yesterday = (s.lastDay === today - 1);
+    s.streak = yesterday ? s.streak + 1 : 1;
+    s.maxStreak = Math.max(s.maxStreak, s.streak);
+  } else {
+    s.streak = 0;
+  }
+  s.lastDay = today;
+  saveGlobalStats(s);
+}
+
+function openStats() {
+  const s = loadGlobalStats() || defaultStats();
+  document.getElementById('st-played').textContent = s.played;
+  document.getElementById('st-winpct').textContent = s.played ? Math.round(s.wins / s.played * 100) + '%' : '0%';
+  document.getElementById('st-streak').textContent = s.streak;
+  document.getElementById('st-maxstreak').textContent = s.maxStreak;
+
+  const chart = document.getElementById('dist-chart');
+  chart.innerHTML = '';
+  const max = Math.max(1, ...Object.values(s.dist));
+  const todayTries = gameOver && rowStates.some(rs => rs && rs.every(w => w.every(c => c === 'correct')))
+    ? rowStates.filter(Boolean).length : null;
+
+  for (let i = 1; i <= 6; i++) {
+    const count = s.dist[i] || 0;
+    const row = document.createElement('div');
+    row.className = 'dist-row';
+    const pct = Math.max(8, Math.round(count / max * 100));
+    row.innerHTML = `<div class="dist-label">${i}</div>
+      <div class="dist-bar-wrap">
+        <div class="dist-bar${todayTries === i ? ' today' : ''}" style="width:${pct}%">${count}</div>
+      </div>`;
+    chart.appendChild(row);
+  }
+
+  document.getElementById('stats-overlay').style.display = 'flex';
+}
+
+function closeStats() { document.getElementById('stats-overlay').style.display = 'none'; }
+document.getElementById('stats-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeStats();
+});
+
+// ── Challenge functions ──────────────────────────────────────
+function openChallenge() {
+  resetChallengeModal();
+  document.getElementById('challenge-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('challenge-input').focus(), 100);
+}
+
+function closeChallenge() {
+  document.getElementById('challenge-overlay').style.display = 'none';
+}
+
+function resetChallengeModal() {
+  document.getElementById('challenge-step1').style.display = 'block';
+  document.getElementById('challenge-step2').style.display = 'none';
+  document.getElementById('challenge-input').value = '';
+  document.getElementById('challenge-error').textContent = '';
+}
+
+function generateChallengeLink() {
+  const val = document.getElementById('challenge-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('challenge-error');
+  if (!val || val.length < 2) {
+    errEl.textContent = 'Saisis un nom d\'artiste valide.';
+    return;
+  }
+  // Normalize accents
+  const normalized = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const encoded = btoa(normalized);
+  const url = window.location.origin + window.location.pathname + '?defi=' + encoded;
+  document.getElementById('challenge-link').value = url;
+  document.getElementById('challenge-step1').style.display = 'none';
+  document.getElementById('challenge-step2').style.display = 'block';
+  errEl.textContent = '';
+}
+
+function copyChallenge() {
+  const link = document.getElementById('challenge-link').value;
+  navigator.clipboard.writeText(link).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copié ✓';
+    setTimeout(() => btn.textContent = 'Copier', 2000);
+  });
+}
+
+function shareChallenge() {
+  const link = document.getElementById('challenge-link').value;
+  const name = document.getElementById('challenge-input').value || '?';
+  const text = '⚡ Je te lance un défi Mutom ! Sauras-tu trouver cet artiste ?\n' + link;
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('#challenge-step2 button');
+      btn.textContent = 'Lien copié ✓';
+      setTimeout(() => btn.textContent = 'Partager le défi 🎵', 2000);
+    });
+  }
+}
+
+document.getElementById('challenge-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeChallenge();
+});
+
+initGame();
+</script>
+</body>
+</html>
